@@ -41,7 +41,7 @@ class EventAnalyzer : public edm::EDAnalyzer {
 
       virtual void endRun(edm::Run const&, edm::EventSetup const&);
       virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
-      virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
+      virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
 
     // ----------member data ---------------------------
 

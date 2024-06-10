@@ -33,8 +33,8 @@
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 #include "DataFormats/JetReco/interface/Jet.h"
-#include "SimDataFormats/JetMatching/interface/JetFlavourInfo.h"
-#include "SimDataFormats/JetMatching/interface/JetFlavourInfoMatching.h"
+#include "SimDataFormats/JetMatching/interface/JetFlavour.h"
+#include "SimDataFormats/JetMatching/interface/JetFlavourMatching.h"
 #include "DataFormats/JetReco/interface/CaloJet.h"
 #include "DataFormats/RecoCandidate/interface/RecoCandidate.h"
 
@@ -72,7 +72,7 @@ private:
   virtual void beginRun(edm::Run const &, edm::EventSetup const &);
   virtual void endRun(edm::Run const &, edm::EventSetup const &);
   virtual void beginLuminosityBlock(edm::LuminosityBlock const &, edm::EventSetup const &);
-  virtual void endLuminosityBlock(edm::LuminosityBlock const &, edm::EventSetup const &) override;
+  virtual void endLuminosityBlock(edm::LuminosityBlock const &, edm::EventSetup const &);
 
   // declare the input tag for PFJetCollection
   edm::InputTag jetInput;
@@ -390,7 +390,7 @@ void JetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSetu
   iEvent.getByLabel(InputTag("kt6PFJets:rho"), rhoHandle);
   Handle<reco::VertexCollection> vertices;
   iEvent.getByLabel(InputTag("offlinePrimaryVertices"), vertices);
-  Handle<reco::JetFlavourInfoMatchingCollection> injets;
+  Handle<reco::JetFlavourMatchingCollection> injets;
   // if (!isData)
   // {
   //   iEvent.getByLabel(InputTag("jetFlavourInfosAK5PFJets"), injets);

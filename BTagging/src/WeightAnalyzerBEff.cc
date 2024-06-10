@@ -33,8 +33,8 @@
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
 
 #include "DataFormats/JetReco/interface/Jet.h"
-#include "SimDataFormats/JetMatching/interface/JetFlavourInfo.h"
-#include "SimDataFormats/JetMatching/interface/JetFlavourInfoMatching.h"
+#include "SimDataFormats/JetMatching/interface/JetFlavour.h"
+#include "SimDataFormats/JetMatching/interface/JetFlavourMatching.h"
 
 #include "DataFormats/JetReco/interface/PFJet.h"
 #include "DataFormats/JetReco/interface/PFJetCollection.h"
@@ -71,9 +71,9 @@ public:
   
   
 private:
-  virtual void beginJob() override;
-  virtual void analyze(const edm::Event&, const edm::EventSetup&) override;
-  virtual void endJob() override;
+  virtual void beginJob();
+  virtual void analyze(const edm::Event&, const edm::EventSetup&);
+  virtual void endJob();
   
   TH1D* BEff_Dptbins_b;   
   TH1D* BEff_Dptbins_c;   

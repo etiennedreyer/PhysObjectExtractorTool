@@ -22,7 +22,7 @@
 #include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
 #include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
 #include "RecoEgamma/EgammaTools/interface/ConversionTools.h"
-#include "EgammaAnalysis/ElectronTools/interface/PFIsolationEstimator.h"
+// #include "EgammaAnalysis/ElectronTools/interface/PFIsolationEstimator.h"
 
 //classes to save data
 #include "TTree.h"
@@ -48,7 +48,7 @@ private:
   virtual void beginRun(edm::Run const&, edm::EventSetup const&);
   virtual void endRun(edm::Run const&, edm::EventSetup const&);
   virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
-  virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
+  virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
 
   struct AEff {
     float CH_AEff;
@@ -190,6 +190,8 @@ PhotonAnalyzer::effectiveArea0p3cone(float eta)
 void
 PhotonAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
+   return; //HACK!
+   /*
    using namespace edm;
    using namespace std;
 
@@ -294,6 +296,7 @@ PhotonAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   
   mtree->Fill();
   return;
+  */
   
 }
 
