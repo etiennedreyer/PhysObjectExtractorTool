@@ -64,8 +64,9 @@ else:
 
 
 # ---- These two lines are needed if you require access to the conditions database. E.g., to get jet energy corrections, trigger prescales, etc.
-# process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
-# process.load("Configuration.StandardSequences.Services_cff")
+# ---- Comment theese lines for launching at WIS
+process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
+process.load("Configuration.StandardSequences.Services_cff")
 process.GlobalTag.globaltag = "START53_LV6A1::All"
 
 
@@ -111,11 +112,13 @@ process.gens = cms.EDAnalyzer(
     # ---- Check PDG ID in the PDG.
     # ---- if 0:0, collect them all
     input_particle=cms.vstring("1:0"),
+    InputJetCollection = cms.InputTag("ak5GenJets")
 )
 
 process.pfcs = cms.EDAnalyzer(
     "ParticleFlowAnalyzer",
     input_particle=cms.vstring("0:0"),
+    InputJetCollection = cms.InputTag("ak5PFJets")
 )
 
 process.vtxs = cms.EDAnalyzer(

@@ -19,6 +19,8 @@
 // classes to extract GenParticle information
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
+#include "DataFormats/JetReco/interface/GenJet.h"
+#include "DataFormats/JetReco/interface/GenJetCollection.h"
 
 // classes to save data
 #include "TTree.h"
@@ -47,6 +49,7 @@ private:
    virtual void endLuminosityBlock(edm::LuminosityBlock const &, edm::EventSetup const &) override;
 
    std::vector<std::string> particle;
+   edm::InputTag jetInput;
 
    // ----------member data ---------------------------
 
@@ -62,6 +65,11 @@ private:
    std::vector<float> GenPart_px;
    std::vector<float> GenPart_py;
    std::vector<float> GenPart_pz;
+   std::vector<float> GenPart_vx;
+   std::vector<float> GenPart_vy;
+   std::vector<float> GenPart_vz;
+
+   std::vector<int> GenPart_jetIdx;
 };
 
 //
@@ -80,6 +88,8 @@ GenParticleAnalyzer::GenParticleAnalyzer(const edm::ParameterSet &iConfig) : par
 
 {
    // now do what ever initialization is needed
+   jetInput = iConfig.getParameter<edm::InputTag>("InputJetCollection");
+
    edm::Service<TFileService> fs;
    mtree = fs->make<TTree>("Events", "Events");
 
@@ -103,6 +113,16 @@ GenParticleAnalyzer::GenParticleAnalyzer(const edm::ParameterSet &iConfig) : par
    mtree->GetBranch("GenPart_pz")->SetTitle("generator particle z coordinate of momentum vector");
    mtree->Branch("GenPart_status", &GenPart_status);
    mtree->GetBranch("GenPart_status")->SetTitle("Particle status. 1=stable");
+
+   mtree->Branch("GenPart_vx", &GenPart_vx);
+   mtree->GetBranch("GenPart_vx")->SetTitle("generator particle x coordinate its vertex");
+   mtree->Branch("GenPart_vy", &GenPart_vy);
+   mtree->GetBranch("GenPart_vy")->SetTitle("generator particle y coordinate its vertex");
+   mtree->Branch("GenPart_vz", &GenPart_vz);
+   mtree->GetBranch("GenPart_vz")->SetTitle("generator particle z coordinate its vertex");
+
+   mtree->Branch("GenPart_jetIdx", &GenPart_jetIdx);
+   mtree->GetBranch("GenPart_jetIdx")->SetTitle("Index of the jet the particle is in. -1 if not in a jet.");
 }
 
 GenParticleAnalyzer::~GenParticleAnalyzer()
@@ -131,11 +151,19 @@ void GenParticleAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetu
    GenPart_py.clear();
    GenPart_pz.clear();
    GenPart_status.clear();
+   GenPart_vx.clear();
+   GenPart_vy.clear();
+   GenPart_vz.clear();
+
+   GenPart_jetIdx.clear();
 
    Handle<reco::GenParticleCollection> gens;
    iEvent.getByLabel("genParticles", gens);
 
-   unsigned int i;
+   Handle<reco::GenJetCollection> myjets;
+   iEvent.getByLabel(jetInput, myjets);
+
+   unsigned int i, j;
    string s1, s2;
    std::vector<int> status_parsed;
    std::vector<int> pdgId_parsed;
@@ -154,17 +182,35 @@ void GenParticleAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetu
    if (gens.isValid())
    {
       numGenPart = gens->size();
+      std::vector<const reco::GenParticle *> genJetParticles;
+      std::vector<int> genJetIndices;
+      if (myjets.isValid())
+      {
+         for (i = 0; i < myjets->size(); i++)
+         {
+            reco::GenJet jet = myjets->at(i);
+            if (jet.pt() < 20)
+            {
+               continue;
+            }
+            std::vector<const reco::GenParticle *> genJetParticles_temp = jet.getGenConstituents();
+            for (j = 0; j < genJetParticles_temp.size(); j++)
+            {
+               genJetParticles.push_back(genJetParticles_temp[j]);
+               genJetIndices.push_back(i);
+            }
+         }
+      }
       for (reco::GenParticleCollection::const_iterator itGenPart = gens->begin(); itGenPart != gens->end(); ++itGenPart)
       {
          // loop trough all particles selected in configuration
          for (i = 0; i < particle.size(); i++)
          {
             if (
-               (status_parsed[i] == itGenPart->status() && pdgId_parsed[i] == itGenPart->pdgId()) || 
-               (status_parsed[i] == 0 && pdgId_parsed[i] == 0) ||
-               (status_parsed[i] == 0 && pdgId_parsed[i] == itGenPart->pdgId()) ||
-               (status_parsed[i] == itGenPart->status() && pdgId_parsed[i] == 0)
-               )
+                (status_parsed[i] == itGenPart->status() && pdgId_parsed[i] == itGenPart->pdgId()) ||
+                (status_parsed[i] == 0 && pdgId_parsed[i] == 0) ||
+                (status_parsed[i] == 0 && pdgId_parsed[i] == itGenPart->pdgId()) ||
+                (status_parsed[i] == itGenPart->status() && pdgId_parsed[i] == 0))
             {
                GenPart_pt.push_back(itGenPart->pt());
                GenPart_eta.push_back(itGenPart->eta());
@@ -175,6 +221,27 @@ void GenParticleAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetu
                GenPart_px.push_back(itGenPart->px());
                GenPart_py.push_back(itGenPart->py());
                GenPart_pz.push_back(itGenPart->pz());
+
+               GenPart_vx.push_back(itGenPart->vx());
+               GenPart_vy.push_back(itGenPart->vy());
+               GenPart_vz.push_back(itGenPart->vz());
+               
+               bool flag = false;
+               for (j = 0; j < genJetParticles.size(); j++)
+               {
+                  const reco::GenParticle *genPart = &(*itGenPart);
+                  if (genPart == genJetParticles[j])
+                  {
+                     GenPart_jetIdx.push_back(genJetIndices[j]);
+                     // std::cout << "Particle " << itGenPart->pdgId() << " is in jet " << genJetIndices[j] << std::endl;
+                     flag = true;
+                     break;
+                  }
+               }
+               if (!flag)
+               {
+                  GenPart_jetIdx.push_back(-1);
+               }
             }
          }
       }

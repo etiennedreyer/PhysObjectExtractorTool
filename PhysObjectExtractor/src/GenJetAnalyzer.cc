@@ -54,7 +54,8 @@ public:
 
 private:
   virtual void beginJob();
-  virtual void analyze(const edm::Event &, const edm::EventSetup &);;
+  virtual void analyze(const edm::Event &, const edm::EventSetup &);
+  ;
   virtual void endJob();
   virtual void beginRun(edm::Run const &, edm::EventSetup const &);
   virtual void endRun(edm::Run const &, edm::EventSetup const &);
@@ -65,7 +66,7 @@ private:
   edm::InputTag jetInput;
 
   // ----------member data ---------------------------
-  
+
   int numjet; // number of jets in the event
   TTree *mtree;
   std::vector<float> jet_e;
@@ -98,7 +99,6 @@ GenJetAnalyzer::GenJetAnalyzer(const edm::ParameterSet &iConfig)
   edm::Service<TFileService> fs;
   mtree = fs->make<TTree>("Events", "Events");
 
-
   mtree->Branch("numberjet", &numjet);
   mtree->GetBranch("numberjet")->SetTitle("Number of Jets");
   mtree->Branch("jet_e", &jet_e);
@@ -119,7 +119,6 @@ GenJetAnalyzer::GenJetAnalyzer(const edm::ParameterSet &iConfig)
   mtree->GetBranch("jet_ch")->SetTitle("Jet Charge");
   mtree->Branch("jet_mass", &jet_mass);
   mtree->GetBranch("jet_mass")->SetTitle("Jet Mass");
-
 }
 
 GenJetAnalyzer::~GenJetAnalyzer()
@@ -131,7 +130,6 @@ GenJetAnalyzer::~GenJetAnalyzer()
 //
 // member functions
 //
-
 
 void GenJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSetup)
 {
@@ -162,7 +160,8 @@ void GenJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
 
     for (reco::GenJetCollection::const_iterator itjet = myjets->begin(); itjet != myjets->end(); ++itjet)
     {
-      if (itjet->pt() > min_pt){
+      if (itjet->pt() > min_pt)
+      {
         jet_e.push_back(itjet->energy());
         jet_pt.push_back(itjet->pt());
         jet_px.push_back(itjet->px());
