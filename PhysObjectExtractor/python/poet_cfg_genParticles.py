@@ -66,7 +66,7 @@ else:
 # ---- These two lines are needed if you require access to the conditions database. E.g., to get jet energy corrections, trigger prescales, etc.
 # process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
 # process.load("Configuration.StandardSequences.Services_cff")
-# process.GlobalTag.globaltag = "START53_LV6A1::All"
+process.GlobalTag.globaltag = "START53_LV6A1::All"
 
 
 
@@ -81,7 +81,7 @@ process.jetFlavourInfosAK5PFJets = ak5JetFlavourInfos.clone()
 #---- Configure the POET jet analyzer
 #---- Don't forget to run jec_cfg.py to get these .txt files!
 JecString = 'START53_LV6A1_'
-process.jets= cms.EDAnalyzer('JetAnalyzer',
+process.pfJetsAk5= cms.EDAnalyzer('JetAnalyzer',
                     InputCollection = cms.InputTag("ak5PFJets"),
                     isData = cms.bool(False),
                     isSim  = cms.bool(False),
@@ -93,16 +93,19 @@ process.jets= cms.EDAnalyzer('JetAnalyzer',
                     jerResName = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/JetResolutionInputAK5PF.txt')
                     )
 
-process.genjets= cms.EDAnalyzer('GenJetAnalyzer',
-                    InputCollection = cms.InputTag("ak5GenJets")
+process.genJetsAk7 = cms.EDAnalyzer('GenJetAnalyzer',
+                    InputCollection = cms.InputTag("ak7GenJets")
                     )
 
+process.genJetsAk5 = cms.EDAnalyzer('GenJetAnalyzer',
+                    InputCollection = cms.InputTag("ak5GenJets")
+                    )
 # ---- Configure the PhysObjectExtractor modules!
 
 # ---- More information about InputCollections at https://twiki.cern.ch/twiki/bin/view/CMSPublic/SWGuideRecoDataTable
 process.events = cms.EDAnalyzer('EventAnalyzer')
 
-process.genparticles = cms.EDAnalyzer(
+process.gens = cms.EDAnalyzer(
     "GenParticleAnalyzer",
     # ---- Collect particles with specific "status:pdgid"
     # ---- Check PDG ID in the PDG.
@@ -119,6 +122,25 @@ process.vtxs = cms.EDAnalyzer(
     "VertexAnalyzer"
 )
 
+
+# --- Trigger
+
+process.trigger = cms.EDAnalyzer('TriggerAnalyzer',
+                              processName = cms.string("HLT"),
+                              #---- These are example triggers for 2011 DoubleMu dataset
+                              #---- Wildcards * and ? are accepted (with usual meanings)
+                               #---- If left empty, all triggers will run              
+#                              triggerPatterns = cms.vstring("HLT_L2DoubleMu23_NoVertex_v*","HLT_Mu13_Mu8_v*", "HLT_DoubleMu45_v*", "HLT_Mu8_Jet40_v*", "HLT_TripleMu5_v*"), 
+                            #   triggerPatterns = cms.vstring("HLT_L2DoubleMu23_NoVertex_v*","HLT_Mu13_Mu8_v*"),
+                              triggerPatterns = cms.vstring("HLT_Jet300_*"),
+                              triggerResults = cms.InputTag("TriggerResults","","HLT"),
+                              triggerEvent   = cms.InputTag("hltTriggerSummaryAOD","","HLT")                             
+                              )
+
+
+# --- PileUp
+process.pu = cms.EDAnalyzer('PileupEventAnalyzer')
+
 # ---- Configure the output ROOT filename
 process.TFileService = cms.Service("TFileService", fileName=cms.string(output_file))
 
@@ -126,5 +148,6 @@ process.TFileService = cms.Service("TFileService", fileName=cms.string(output_fi
 # ---- Separation by * implies that processing order is important.
 # ---- separation by + implies that any order will work
 # ---- One can put in or take out the needed processes
-process.p = cms.Path(process.events+process.genparticles+process.pfcs+process.jets+process.genjets+process.vtxs)
+process.p = cms.Path(process.events+process.gens+process.pfcs+process.pfJetsAk5+process.genJetsAk5+process.genJetsAk7+process.vtxs+process.trigger + process.pu)
+# process.p = cms.Path(process.events+process.gens+process.pfcs+process.pfJetsAk5+process.genJetsAk5+process.genJetsAk7)
 # process.p = cms.Path(process.genparticles)
