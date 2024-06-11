@@ -11,4 +11,4 @@ cd CMSSW_5_3_32/src
 cmsenv
 
 cd PhysObjectExtractorTool/PhysObjectExtractor/
-scram b
+# scram b
