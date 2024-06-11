@@ -64,9 +64,9 @@ else:
 
 
 # ---- These two lines are needed if you require access to the conditions database. E.g., to get jet energy corrections, trigger prescales, etc.
-process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
-process.load("Configuration.StandardSequences.Services_cff")
-process.GlobalTag.globaltag = "START53_LV6A1::All"
+# process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
+# process.load("Configuration.StandardSequences.Services_cff")
+# process.GlobalTag.globaltag = "START53_LV6A1::All"
 
 
 
