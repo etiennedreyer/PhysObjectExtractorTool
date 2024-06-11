@@ -17,11 +17,12 @@ def submit_jobs(input, output=None, limit="walltime=7:59:00,mem=12g", dry_run=Fa
         raise ValueError("Input file must be a .root file or a .txt file containing a list of .root files")
 
     for file in files:
+        file = file.strip()
         if len(files)==1 and (output is not None):
             outfile = output
         else:
             latter_part = file.split("/eos/opendata/cms/")[-1]
-            out_dir = latter_part.split("/")[:-1].join("/")
+            out_dir = "/".join(latter_part.split("/")[:-1])
             out_dir = top_dir + "/output/" + out_dir
             if not os.path.exists(out_dir):
                 os.makedirs(out_dir)
