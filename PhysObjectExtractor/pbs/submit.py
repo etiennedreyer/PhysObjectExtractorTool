@@ -16,10 +16,12 @@ def submit_jobs(input, output=None, limit="walltime=7:59:00,mem=12g", dry_run=Fa
     else:
         raise ValueError("Input file must be a .root file or a .txt file containing a list of .root files")
 
-    for file in files:
+    for jobID, file in enumerate(files):
+        jobID += 1
         file = file.strip()
         if len(files)==1 and (output is not None):
             outfile = output
+            out_dir = "/".join(outfile.split("/")[:-1])
         else:
             latter_part = file.split("/eos/opendata/cms/")[-1]
             out_dir = "/".join(latter_part.split("/")[:-1])
@@ -28,10 +30,17 @@ def submit_jobs(input, output=None, limit="walltime=7:59:00,mem=12g", dry_run=Fa
                 os.makedirs(out_dir)
             outfile = out_dir + "/" + file.split("/")[-1].replace(".root", "_poet.root")
 
-        out_log = outfile.replace(".root", "_poet_out.log")
-        err_log = outfile.replace(".root", "_poet_err.log")
+        os.makedirs(f"{top_dir}/pbs/tmp", exist_ok=True)
+        out_log = f"{top_dir}/pbs/tmp/out_{jobID}.log"
+        err_log = f"{top_dir}/pbs/tmp/err_{jobID}.log"
 
-        job = f"qsub -q N -l {limit} -o {out_log} -e {err_log} -v infile={file},outfile={outfile},nevents={num_events} {run_script}"
+        ### write job script in the output directory
+        run_cms_script = f"{top_dir}/pbs/tmp/run_cms_{jobID}.sh"
+        with open(run_cms_script, "w") as f:
+            # f.write(f"pwd\ncmsrel CMSSW_5_3_32\ncd CMSSW_5_3_32/src\ncmsenv\ncd PhysObjectExtractorTool/PhysObjectExtractor/\npwd\n")
+            f.write(f"cmsRun python/poet_cfg_genParticles.py {file} {outfile} {num_events}")
+
+        job = f"qsub -q N -l {limit} -o {out_log} -e {err_log} -v jobID={jobID} {run_script}"
         print(job)
         if not dry_run:
             os.system(job)
