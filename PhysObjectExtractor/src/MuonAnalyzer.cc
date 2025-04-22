@@ -67,6 +67,9 @@ class MuonAnalyzer : public edm::EDAnalyzer {
       std::vector<float> muon_mass;
       std::vector<float> muon_pfreliso03all;
       std::vector<float> muon_pfreliso04all;
+      std::vector<float> muon_isoChargedPtSum;
+      std::vector<float> muon_isoNeutralPtSum;
+      std::vector<float> muon_isoPhotonPtSum;
       std::vector<float> muon_tightid;
       std::vector<float> muon_softid;
       std::vector<float> muon_dxy;
@@ -121,6 +124,12 @@ MuonAnalyzer::MuonAnalyzer(const edm::ParameterSet& iConfig)
 	mtree->GetBranch("muon_pfreliso03all")->SetTitle("muon particle flow relative isolation cone 03");
 	mtree->Branch("muon_pfreliso04all",&muon_pfreliso04all);
 	mtree->GetBranch("muon_pfreliso04all")->SetTitle("muon particle flow relative isolation cone 04");
+	mtree->Branch("muon_isoChargedPtSum",&muon_isoChargedPtSum);
+	mtree->GetBranch("muon_isoChargedPtSum")->SetTitle("muon particle flow relative isolation cone 04 charged sum");
+  mtree->Branch("muon_isoNeutralPtSum",&muon_isoNeutralPtSum);
+  mtree->GetBranch("muon_isoNeutralPtSum")->SetTitle("muon particle flow relative isolation cone 04 neutral sum");
+  mtree->Branch("muon_isoPhotonPtSum",&muon_isoPhotonPtSum);
+  mtree->GetBranch("muon_isoPhotonPtSum")->SetTitle("muon particle flow relative isolation cone 04 photon sum");
 	mtree->Branch("muon_tightid",&muon_tightid);
 	mtree->GetBranch("muon_tightid")->SetTitle("tight cut-based ID");
 	mtree->Branch("muon_softid",&muon_softid);
@@ -172,6 +181,9 @@ MuonAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    muon_mass.clear();
    muon_pfreliso03all.clear();
    muon_pfreliso04all.clear();
+   muon_isoChargedPtSum.clear();
+   muon_isoNeutralPtSum.clear();
+   muon_isoPhotonPtSum.clear();
    muon_tightid.clear();
    muon_softid.clear();
    muon_dxy.clear();
@@ -208,12 +220,18 @@ MuonAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         	      muon_pfreliso03all.push_back((iso03.sumChargedHadronPt + iso03.sumNeutralHadronEt + iso03.sumPhotonEt)/itmuon->pt());
         	      auto iso04 = itmuon->pfIsolationR04();
         	      muon_pfreliso04all.push_back((iso04.sumChargedHadronPt + iso04.sumNeutralHadronEt + iso04.sumPhotonEt)/itmuon->pt());
+                muon_isoChargedPtSum.push_back(iso04.sumChargedHadronPt);
+                muon_isoNeutralPtSum.push_back(iso04.sumNeutralHadronEt);
+                muon_isoPhotonPtSum.push_back(iso04.sumPhotonEt);
         	    } else {
         	      muon_pfreliso03all.push_back(-999);
         	      muon_pfreliso04all.push_back(-999);
+                muon_isoChargedPtSum.push_back(-999);
+                muon_isoNeutralPtSum.push_back(-999);
+                muon_isoPhotonPtSum.push_back(-999);
         	    }
 
-                    muon_tightid.push_back(muon::isTightMuon(*itmuon, *vertices->begin()));
+              muon_tightid.push_back(muon::isTightMuon(*itmuon, *vertices->begin()));
         	    muon_softid.push_back(muon::isSoftMuon(*itmuon, *vertices->begin()));
         	    auto trk = itmuon->globalTrack();
         	    if (trk.isNonnull()) {

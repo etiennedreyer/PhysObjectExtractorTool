@@ -26,9 +26,50 @@ process = cms.Process("POET")
 # ---- Configure the framework messaging system
 # ---- https://twiki.cern.ch/twiki/bin/view/CMSPublic/SWGuideMessageLogger
 process.load("FWCore.MessageService.MessageLogger_cfi")
-process.MessageLogger.cerr.threshold = "WARNING"
+#process.MessageLogger = cms.Service("MessageLogger",
+#    destinations = cms.untracked.vstring('debug'),  # output file
+#    debugModules = cms.untracked.vstring('*'),      # enable all modules
+#    categories = cms.untracked.vstring('*'),        # enable all categories
+#    debug = cms.untracked.PSet(
+#        threshold = cms.untracked.string('DEBUG'),
+#    )
+#)
+
+
+# process.MessageLogger.cerr.threshold = "INFO"
+# process.MessageLogger.categories.append("POET")
+# process.MessageLogger.categories.append("CondDBESSource")
+# process.MessageLogger.categories.append("HCalGeom")
+# process.MessageLogger.categories.append("MagneticField")
+# process.MessageLogger.categories.append("VolumeBasedMagneticFieldESProducer")
+# process.MessageLogger.cerr.INFO = cms.untracked.PSet(limit=cms.untracked.int32(-1))
+# process.MessageLogger.cerr.FwkReport = cms.untracked.PSet(
+#     reportEvery = cms.untracked.int32(100),
+#     limit = cms.untracked.int32(-1)
+# )
+# process.MessageLogger.cerr.CondDBESSource = cms.untracked.PSet(
+#     limit = cms.untracked.int32(0)
+# )
+# process.MessageLogger.cerr.HCalGeom = cms.untracked.PSet(
+#     limit = cms.untracked.int32(0)
+# )
+# process.MessageLogger.cerr.VolumeBasedMagneticFieldESProducer = cms.untracked.PSet(
+#     limit = cms.untracked.int32(0)
+# )
+# process.MessageLogger.cerr.MagneticField = cms.untracked.PSet(
+#     limit = cms.untracked.int32(0)
+# )
+process.MessageLogger.cerr.threshold = "INFO"
 process.MessageLogger.categories.append("POET")
-process.MessageLogger.cerr.INFO = cms.untracked.PSet(limit=cms.untracked.int32(-1))
+process.MessageLogger.cerr.INFO = cms.untracked.PSet(limit=cms.untracked.int32(0))
+process.MessageLogger.cerr.FwkReport = cms.untracked.PSet(
+    reportEvery = cms.untracked.int32(100),
+    limit = cms.untracked.int32(-1)
+)
+process.MessageLogger.cerr.POET = cms.untracked.PSet(
+    limit = cms.untracked.int32(-1)
+)
+
 process.options = cms.untracked.PSet(wantSummary=cms.untracked.bool(True))
 
 # ---- Select the maximum number of events to process (if -1, run over all events)
@@ -37,7 +78,14 @@ process.maxEvents = cms.untracked.PSet(input=cms.untracked.int32(num_events))
 
 # ---- Load needed configuration
 process.load("Configuration.Geometry.GeometryIdeal_cff")
-process.load("Configuration.StandardSequences.MagneticField_cff")
+# process.load("Configuration.StandardSequences.MagneticField_cff")
+process.load("Configuration.StandardSequences.MagneticField_38T_cff")
+
+#---- Needed configuration for dealing with transient tracks if required
+process.load("TrackingTools/TransientTrack/TransientTrackBuilder_cfi")
+# process.load("Configuration.Geometry.GeometryIdeal_cff")
+# process.load("Configuration.StandardSequences.MagneticField_cff")
+
 
 if not batchMode:
     # ---- Define the test source files to be read using the xrootd protocol (root://), or local files (file:)
@@ -64,42 +112,45 @@ else:
 
 
 # ---- These two lines are needed if you require access to the conditions database. E.g., to get jet energy corrections, trigger prescales, etc.
-# process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
+# ---- Comment theese lines for launching at WIS
+process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
 # process.load("Configuration.StandardSequences.Services_cff")
-# process.GlobalTag.globaltag = "START53_LV6A1::All"
+process.GlobalTag.connect = cms.string("sqlite_file:/srv01/agrp/dmitrykl/projects/cmssw/CMSSW_5_3_32/src/PhysObjectExtractorTool/PhysObjectExtractor/START53_LV6A1.db")
+process.GlobalTag.globaltag = "START53_LV6A1::All"
+
 
 
 
 # --- Jet loading configuration 
 
 #---- Get non-PAT access to the jet flavour information
-from PhysicsTools.JetMCAlgos.HadronAndPartonSelector_cfi import selectedHadronsAndPartons
-process.selectedHadronsAndPartons = selectedHadronsAndPartons.clone()
-from PhysicsTools.JetMCAlgos.AK5PFJetsMCFlavourInfos_cfi import ak5JetFlavourInfos
-process.jetFlavourInfosAK5PFJets = ak5JetFlavourInfos.clone()
+# from PhysicsTools.JetMCAlgos.HadronAndPartonSelector_cfi import selectedHadronsAndPartons
+# process.selectedHadronsAndPartons = selectedHadronsAndPartons.clone()
+# from PhysicsTools.JetMCAlgos.AK5PFJetsMCFlavourInfos_cfi import ak5JetFlavourInfos
+# process.jetFlavourInfosAK5PFJets = ak5JetFlavourInfos.clone()
 
 #---- Configure the POET jet analyzer
 #---- Don't forget to run jec_cfg.py to get these .txt files!
-JecString = 'START53_LV6A1_'
-process.pfJetsAk5= cms.EDAnalyzer('JetAnalyzer',
-                    InputCollection = cms.InputTag("ak5PFJets"),
-                    isData = cms.bool(False),
-                    isSim  = cms.bool(False),
-                    jecL1Name = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/'+JecString+'L1FastJet_AK5PF.txt'), 
-                    jecL2Name = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/'+JecString+'L2Relative_AK5PF.txt'),
-                    jecL3Name = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/'+JecString+'L3Absolute_AK5PF.txt'),
-                    jecResName = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/'+JecString+'L2L3Residual_AK5PF.txt'),
-                    jecUncName = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/'+JecString+'Uncertainty_AK5PF.txt'),
-                    jerResName = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/JetResolutionInputAK5PF.txt')
-                    )
+# JecString = 'START53_LV6A1_'
+# process.pfJetsAk5= cms.EDAnalyzer('JetAnalyzer',
+#                     InputCollection = cms.InputTag("ak5PFJets"),
+#                     isData = cms.bool(False),
+#                     isSim  = cms.bool(False),
+#                     jecL1Name = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/'+JecString+'L1FastJet_AK5PF.txt'), 
+#                     jecL2Name = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/'+JecString+'L2Relative_AK5PF.txt'),
+#                     jecL3Name = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/'+JecString+'L3Absolute_AK5PF.txt'),
+#                     jecResName = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/'+JecString+'L2L3Residual_AK5PF.txt'),
+#                     jecUncName = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/'+JecString+'Uncertainty_AK5PF.txt'),
+#                     jerResName = cms.FileInPath('PhysObjectExtractorTool/PhysObjectExtractor/JEC/JetResolutionInputAK5PF.txt')
+#                     )
 
-process.genJetsAk7 = cms.EDAnalyzer('GenJetAnalyzer',
-                    InputCollection = cms.InputTag("ak7GenJets")
-                    )
+# process.genJetsAk7 = cms.EDAnalyzer('GenJetAnalyzer',
+#                     InputCollection = cms.InputTag("ak7GenJets")
+#                     )
 
-process.genJetsAk5 = cms.EDAnalyzer('GenJetAnalyzer',
-                    InputCollection = cms.InputTag("ak5GenJets")
-                    )
+# process.genJetsAk5 = cms.EDAnalyzer('GenJetAnalyzer',
+#                     InputCollection = cms.InputTag("ak5GenJets")
+#                     )
 # ---- Configure the PhysObjectExtractor modules!
 
 # ---- More information about InputCollections at https://twiki.cern.ch/twiki/bin/view/CMSPublic/SWGuideRecoDataTable
@@ -124,22 +175,33 @@ process.vtxs = cms.EDAnalyzer(
     "VertexAnalyzer"
 )
 
+# process.mymets= cms.EDAnalyzer('MetAnalyzer',
+#     InputCollection = cms.InputTag("pfMet"),
+#     doPat = cms.bool(False),
+# )
 
+process.mytracks= cms.EDAnalyzer('TrackAnalyzer')
 # --- Trigger
 
 # process.trigger = cms.EDAnalyzer('TriggerAnalyzer',
 #                               processName = cms.string("HLT"),
-                              #---- These are example triggers for 2011 DoubleMu dataset
-                              #---- Wildcards * and ? are accepted (with usual meanings)
-                               #---- If left empty, all triggers will run              
-#                              triggerPatterns = cms.vstring("HLT_L2DoubleMu23_NoVertex_v*","HLT_Mu13_Mu8_v*", "HLT_DoubleMu45_v*", "HLT_Mu8_Jet40_v*", "HLT_TripleMu5_v*"), 
-                            #   triggerPatterns = cms.vstring("HLT_L2DoubleMu23_NoVertex_v*","HLT_Mu13_Mu8_v*"),
-                            #   triggerPatterns = cms.vstring("HLT_Jet300_*"),
-                            #   triggerResults = cms.InputTag("TriggerResults","","HLT"),
-                            #   triggerEvent   = cms.InputTag("hltTriggerSummaryAOD","","HLT")                             
-                            #   )
+#                               #---- These are example triggers for 2011 DoubleMu dataset
+#                               #---- Wildcards * and ? are accepted (with usual meanings)
+#                                #---- If left empty, all triggers will run              
+# #                              triggerPatterns = cms.vstring("HLT_L2DoubleMu23_NoVertex_v*","HLT_Mu13_Mu8_v*", "HLT_DoubleMu45_v*", "HLT_Mu8_Jet40_v*", "HLT_TripleMu5_v*"), 
+#                             #   triggerPatterns = cms.vstring("HLT_L2DoubleMu23_NoVertex_v*","HLT_Mu13_Mu8_v*"),
+#                               triggerPatterns = cms.vstring("HLT_Jet300_*"),
+#                               triggerResults = cms.InputTag("TriggerResults","","HLT"),
+#                               triggerEvent   = cms.InputTag("hltTriggerSummaryAOD","","HLT")                             
+#                               )
 
+process.mymuons = cms.EDAnalyzer('MuonAnalyzer',
+    InputCollection = cms.InputTag("muons"),
+)
 
+process.myelectrons = cms.EDAnalyzer('ElectronAnalyzer',
+    InputCollection = cms.InputTag("electrons"),
+)
 # --- PileUp
 # process.pu = cms.EDAnalyzer('PileupEventAnalyzer')
 
@@ -150,6 +212,8 @@ process.TFileService = cms.Service("TFileService", fileName=cms.string(output_fi
 # ---- Separation by * implies that processing order is important.
 # ---- separation by + implies that any order will work
 # ---- One can put in or take out the needed processes
-process.p = cms.Path(process.events+process.gens+process.pfcs+process.pfJetsAk5+process.genJetsAk5+process.genJetsAk7+process.vtxs)#+process.trigger+process.pu)
+# process.p = cms.Path(process.events+process.gens+process.pfcs+process.pfJetsAk5+process.genJetsAk5+process.genJetsAk7+process.vtxs+process.trigger + process.pu + process.mymets + process.mytracks)
 # process.p = cms.Path(process.events+process.gens+process.pfcs+process.pfJetsAk5+process.genJetsAk5+process.genJetsAk7)
+# process.p = cms.Path(process.events+process.gens+process.pfcs+process.vtxs+process.mytracks+process.mymuons)
+process.p = cms.Path(process.events+process.gens+process.pfcs+process.vtxs+process.myelectrons+process.mymuons)
 # process.p = cms.Path(process.genparticles)

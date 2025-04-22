@@ -1,2 +1,7 @@
 *.root
 *.pyc
+*.out
+*.err
+*.log
+run_cms_*.sh
+*.db

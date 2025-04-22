@@ -105,12 +105,12 @@ GenParticleAnalyzer::GenParticleAnalyzer(const edm::ParameterSet &iConfig) : par
    mtree->GetBranch("GenPart_pdgId")->SetTitle("generator particle PDG id");
    mtree->Branch("GenPart_phi", &GenPart_phi);
    mtree->GetBranch("GenPart_phi")->SetTitle("generator particle azimuthal angle of momentum vector");
-   mtree->Branch("GenPart_px", &GenPart_px);
-   mtree->GetBranch("GenPart_px")->SetTitle("generator particle x coordinate of momentum vector");
-   mtree->Branch("GenPart_py", &GenPart_py);
-   mtree->GetBranch("GenPart_py")->SetTitle("generator particle y coordinate of momentum vector");
-   mtree->Branch("GenPart_pz", &GenPart_pz);
-   mtree->GetBranch("GenPart_pz")->SetTitle("generator particle z coordinate of momentum vector");
+   // mtree->Branch("GenPart_px", &GenPart_px);
+   // mtree->GetBranch("GenPart_px")->SetTitle("generator particle x coordinate of momentum vector");
+   // mtree->Branch("GenPart_py", &GenPart_py);
+   // mtree->GetBranch("GenPart_py")->SetTitle("generator particle y coordinate of momentum vector");
+   // mtree->Branch("GenPart_pz", &GenPart_pz);
+   // mtree->GetBranch("GenPart_pz")->SetTitle("generator particle z coordinate of momentum vector");
    mtree->Branch("GenPart_status", &GenPart_status);
    mtree->GetBranch("GenPart_status")->SetTitle("Particle status. 1=stable");
 
@@ -121,8 +121,8 @@ GenParticleAnalyzer::GenParticleAnalyzer(const edm::ParameterSet &iConfig) : par
    mtree->Branch("GenPart_vz", &GenPart_vz);
    mtree->GetBranch("GenPart_vz")->SetTitle("generator particle z coordinate its vertex");
 
-   mtree->Branch("GenPart_jetIdx", &GenPart_jetIdx);
-   mtree->GetBranch("GenPart_jetIdx")->SetTitle("Index of the jet the particle is in. -1 if not in a jet.");
+   // mtree->Branch("GenPart_jetIdx", &GenPart_jetIdx);
+   // mtree->GetBranch("GenPart_jetIdx")->SetTitle("Index of the jet the particle is in. -1 if not in a jet.");
 }
 
 GenParticleAnalyzer::~GenParticleAnalyzer()

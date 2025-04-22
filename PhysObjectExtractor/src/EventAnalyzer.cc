@@ -51,6 +51,7 @@ class EventAnalyzer : public edm::EDAnalyzer {
     Int_t value_run;
     UInt_t value_lumi_block;
     ULong64_t value_event;
+    double rhoIso;
 
 };
 
@@ -75,6 +76,7 @@ EventAnalyzer::EventAnalyzer(const edm::ParameterSet& iConfig)
     tree->Branch("run", &value_run);
     tree->Branch("luminosityBlock", &value_lumi_block);
     tree->Branch("event", &value_event);
+    tree->Branch("rhoIso", &rhoIso);
 }
 
 EventAnalyzer::~EventAnalyzer()
@@ -99,6 +101,11 @@ EventAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    value_run = iEvent.run();
    value_lumi_block = iEvent.luminosityBlock();
    value_event = iEvent.id().event();
+
+   Handle<double> rhoHandle;
+   iEvent.getByLabel(InputTag("fixedGridRhoAll"), rhoHandle);
+   if(rhoHandle.isValid()) rhoIso = std::max(*(rhoHandle.product()), 0.0);   
+   else rhoIso = -1.0;
 
    tree->Fill();
    return;

@@ -485,6 +485,7 @@ void JetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSetu
       }
 
       if (ptscale * corr * uncorrJet.pt() >= min_pt)
+      //if (itjet->pt() >= min_pt)
       {
 
         jet_e.push_back(itjet->energy());

@@ -22,11 +22,20 @@
 #include "DataFormats/JetReco/interface/PFJet.h"
 #include "DataFormats/JetReco/interface/PFJetCollection.h"
 // #include "DataFormats/Candidate/interface/OverlapChecker.h"
-
+#include "DataFormats/TrackReco/interface/TrackFwd.h"
+#include "DataFormats/TrackReco/interface/Track.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
 // classes to save data
 #include "TTree.h"
 #include "TFile.h"
 #include <vector>
+
+//TransientTrack and IPTools for impact parameter
+#include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
+#include "TrackingTools/Records/interface/TransientTrackRecord.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrack.h"
+#include "TrackingTools/IPTools/interface/IPTools.h"
 
 //
 // class declaration
@@ -71,6 +80,14 @@ private:
    std::vector<float> PFCand_vz;
 
    std::vector<int> PFCand_jetIdx;
+   
+   std::vector<float> PFCand_d0;
+   std::vector<float> PFCand_d0Error;
+   std::vector<float> PFCand_z0;
+   std::vector<float> PFCand_z0Error;
+
+   std::vector<float> PFCand_ip3d;
+   std::vector<float> PFCand_ip3dError;
 };
 
 //
@@ -105,12 +122,12 @@ ParticleFlowAnalyzer::ParticleFlowAnalyzer(const edm::ParameterSet &iConfig) : p
    mtree->GetBranch("PFCand_pdgId")->SetTitle("pflow candidate PDG id");
    mtree->Branch("PFCand_phi", &PFCand_phi);
    mtree->GetBranch("PFCand_phi")->SetTitle("pflow candidate azimuthal angle of momentum vector");
-   mtree->Branch("PFCand_px", &PFCand_px);
-   mtree->GetBranch("PFCand_px")->SetTitle("pflow candidate x coordinate of momentum vector");
-   mtree->Branch("PFCand_py", &PFCand_py);
-   mtree->GetBranch("PFCand_py")->SetTitle("pflow candidate y coordinate of momentum vector");
-   mtree->Branch("PFCand_pz", &PFCand_pz);
-   mtree->GetBranch("PFCand_pz")->SetTitle("pflow candidate z coordinate of momentum vector");
+   // mtree->Branch("PFCand_px", &PFCand_px);
+   // mtree->GetBranch("PFCand_px")->SetTitle("pflow candidate x coordinate of momentum vector");
+   // mtree->Branch("PFCand_py", &PFCand_py);
+   // mtree->GetBranch("PFCand_py")->SetTitle("pflow candidate y coordinate of momentum vector");
+   // mtree->Branch("PFCand_pz", &PFCand_pz);
+   // mtree->GetBranch("PFCand_pz")->SetTitle("pflow candidate z coordinate of momentum vector");
 
    mtree->Branch("PFCand_vx", &PFCand_vx);
    mtree->GetBranch("PFCand_vx")->SetTitle("pflow candidate x coordinate of its vertex");
@@ -118,8 +135,25 @@ ParticleFlowAnalyzer::ParticleFlowAnalyzer(const edm::ParameterSet &iConfig) : p
    mtree->GetBranch("PFCand_vy")->SetTitle("pflow candidate y coordinate of its vertex");
    mtree->Branch("PFCand_vz", &PFCand_vz);
    mtree->GetBranch("PFCand_vz")->SetTitle("pflow candidate z coordinate of its vertex");
-   mtree->Branch("PFCand_jetIdx", &PFCand_jetIdx);
-   mtree->GetBranch("PFCand_jetIdx")->SetTitle("Index of the jet the particle is in. -1 if not in a jet.");
+   // mtree->Branch("PFCand_jetIdx", &PFCand_jetIdx);
+   // mtree->GetBranch("PFCand_jetIdx")->SetTitle("Index of the jet the particle is in. -1 if not in a jet.");
+   
+   
+   // Impact parameter variables
+   mtree->Branch("PFCand_d0", &PFCand_d0);
+   mtree->GetBranch("PFCand_d0")->SetTitle("pflow candidate d0");
+   mtree->Branch("PFCand_d0Error", &PFCand_d0Error);
+   mtree->GetBranch("PFCand_d0Error")->SetTitle("pflow candidate d0Error");
+
+   mtree->Branch("PFCand_z0", &PFCand_z0);
+   mtree->GetBranch("PFCand_z0")->SetTitle("pflow candidate z0");
+   mtree->Branch("PFCand_z0Error", &PFCand_z0Error);
+   mtree->GetBranch("PFCand_z0Error")->SetTitle("pflow candidate z0Error");
+   
+   mtree->Branch("PFCand_ip3d",&PFCand_ip3d);
+   mtree->GetBranch("PFCand_ip3d")->SetTitle("PFCand ip3d");
+   mtree->Branch("PFCand_ip3dError",&PFCand_ip3dError);
+   mtree->GetBranch("PFCand_ip3dError")->SetTitle("PFCand ip3dError");
 }
 
 ParticleFlowAnalyzer::~ParticleFlowAnalyzer()
@@ -152,6 +186,14 @@ void ParticleFlowAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSet
    PFCand_vy.clear();
    PFCand_vz.clear();
 
+   PFCand_d0.clear();
+   PFCand_d0Error.clear();
+   PFCand_z0.clear();
+   PFCand_z0Error.clear();
+
+   PFCand_ip3d.clear();
+   PFCand_ip3dError.clear();
+
    PFCand_jetIdx.clear();
 
    Handle<reco::PFCandidateCollection> pfcs;
@@ -161,37 +203,47 @@ void ParticleFlowAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSet
    iEvent.getByLabel(jetInput, myjets);
 
    // OverlapChecker overlap = OverlapChecker();
-
-   unsigned int i, j;
+   Handle<reco::VertexCollection> vertices;
+   iEvent.getByLabel(InputTag("offlinePrimaryVertices"), vertices);
+   math::XYZPoint pv(vertices->begin()->position());
+   const reco::Vertex &PV = vertices->front();
+   // unsigned int i, j;
+   unsigned int i;
 
    if (pfcs.isValid())
    {
-      numPFCand = pfcs->size();
+      // numPFCand = pfcs->size();
+      numPFCand = 0;
 
-      std::vector<reco::PFCandidatePtr> pfJetParticles;
-      std::vector<int> pfJetIndices;
-      if (myjets.isValid())
-      {
-         for (i = 0; i < myjets->size(); i++)
-         {
-            reco::PFJet jet = myjets->at(i);
-            if (jet.pt() < 20)
-            {
-               continue;
-            }
-            std::vector<reco::PFCandidatePtr> pfJetParticles_temp = jet.getPFConstituents();
-            for (j = 0; j < pfJetParticles_temp.size(); j++)
-            {
-               pfJetParticles.push_back(pfJetParticles_temp[j]);
-               pfJetIndices.push_back(i);
-            }
-         }
-      }
+      // std::vector<reco::PFCandidatePtr> pfJetParticles;
+      // std::vector<int> pfJetIndices;
+      // if (myjets.isValid())
+      // {
+      //    for (i = 0; i < myjets->size(); i++)
+      //    {
+      //       reco::PFJet jet = myjets->at(i);
+      //       if (jet.pt() < 20)
+      //       {
+      //          continue;
+      //       }
+      //       std::vector<reco::PFCandidatePtr> pfJetParticles_temp = jet.getPFConstituents();
+      //       for (j = 0; j < pfJetParticles_temp.size(); j++)
+      //       {
+      //          pfJetParticles.push_back(pfJetParticles_temp[j]);
+      //          pfJetIndices.push_back(i);
+      //       }
+      //    }
+      // }
       for (reco::PFCandidateCollection::const_iterator itPFCand = pfcs->begin(); itPFCand != pfcs->end(); ++itPFCand)
       {
          // loop trough all particles selected in configuration
          for (i = 0; i < particle.size(); i++)
          {
+            if ((itPFCand->pdgId() == 0) || (itPFCand->pt() < 1))
+            {
+               continue;
+            }
+            numPFCand++;
             PFCand_pt.push_back(itPFCand->pt());
             PFCand_eta.push_back(itPFCand->eta());
             PFCand_mass.push_back(itPFCand->mass());
@@ -205,19 +257,41 @@ void ParticleFlowAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSet
             PFCand_vy.push_back(itPFCand->vy());
             PFCand_vz.push_back(itPFCand->vz());
 
-            bool flag = false;
-            for (j = 0; j < pfJetParticles.size(); j++)
-            {
-               if (&(*itPFCand) == pfJetParticles[j].get())
-               {
-                  PFCand_jetIdx.push_back(pfJetIndices[j]);
-                  flag = true;
-                  break;
-               }
+            // bool flag = false;
+            // for (j = 0; j < pfJetParticles.size(); j++)
+            // {
+            //    if (&(*itPFCand) == pfJetParticles[j].get())
+            //    {
+            //       PFCand_jetIdx.push_back(pfJetIndices[j]);
+            //       flag = true;
+            //       break;
+            //    }
+            // }
+            // if (!flag)
+            // {
+            //    PFCand_jetIdx.push_back(-1);
+            // }
+            if (itPFCand->trackRef().isNonnull()){
+               reco::TrackRef track = itPFCand->trackRef();
+               PFCand_d0.push_back(track->dxy(PV.position()));
+               PFCand_z0.push_back(track->dz(PV.position()));
+               PFCand_d0Error.push_back(track->dxyError());
+               PFCand_z0Error.push_back(track->dzError());
+
+               edm::ESHandle<TransientTrackBuilder> trackBuilder;
+               iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder", trackBuilder);
+               reco::TransientTrack tt = trackBuilder->build(track);
+               std::pair<bool,Measurement1D> ip3dpv = IPTools::absoluteImpactParameter3D(tt, PV);
+               PFCand_ip3d.push_back(ip3dpv.second.value());
+               PFCand_ip3dError.push_back(ip3dpv.second.significance());
             }
-            if (!flag)
-            {
-               PFCand_jetIdx.push_back(-1);
+            else {
+               PFCand_d0.push_back(-1000);
+               PFCand_z0.push_back(-1000);
+               PFCand_d0Error.push_back(-1000);
+               PFCand_z0Error.push_back(-1000);
+               PFCand_ip3d.push_back(-1000);
+               PFCand_ip3dError.push_back(-1000);
             }
          }
       }

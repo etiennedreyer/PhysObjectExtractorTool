@@ -36,6 +36,14 @@
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/TrackReco/interface/HitPattern.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
+
+//TransientTrack and IPTools for impact parameter
+#include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
+#include "TrackingTools/Records/interface/TransientTrackRecord.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrack.h"
+#include "TrackingTools/IPTools/interface/IPTools.h"
 
 
 #include "TTree.h"
@@ -83,6 +91,18 @@ class TrackAnalyzer : public edm::EDAnalyzer {
     std::vector<float> track_pz;
     std::vector<float> track_theta;
     std::vector<float> track_thetaError;
+    
+    std::vector<float> track_vx;
+    std::vector<float> track_vy;
+    std::vector<float> track_vz;
+    
+    std::vector<float> track_dxy;
+    std::vector<float> track_dxyErr;
+    std::vector<float> track_dz;
+    std::vector<float> track_dzErr;
+    std::vector<float> track_ip3d;
+    std::vector<float> track_ip3dErr;
+
 };
 
 //
@@ -137,6 +157,26 @@ TrackAnalyzer::TrackAnalyzer(const edm::ParameterSet& iConfig)
    mtree->GetBranch("track_theta")->SetTitle("track polar angle");
    mtree->Branch("track_thetaError",&track_thetaError);
    mtree->GetBranch("track_thetaError")->SetTitle("error on track polar angle");
+
+   mtree->Branch("track_vx",&track_vx);
+   mtree->GetBranch("track_vx")->SetTitle("track vx");
+   mtree->Branch("track_vy",&track_vy);
+   mtree->GetBranch("track_vy")->SetTitle("track vy");
+   mtree->Branch("track_vz",&track_vz);
+   mtree->GetBranch("track_vz")->SetTitle("track vz");
+
+	mtree->Branch("track_dxy",&track_dxy);
+	mtree->GetBranch("track_dxy")->SetTitle("track dxy");
+	mtree->Branch("track_dxyErr",&track_dxyErr);
+	mtree->GetBranch("track_dxyErr")->SetTitle("track dxy uncertainty");
+	mtree->Branch("track_dz",&track_dz);
+	mtree->GetBranch("track_dz")->SetTitle("track dz");
+	mtree->Branch("track_dzErr",&track_dzErr);
+	mtree->GetBranch("track_dzErr")->SetTitle("track dz uncertainty");
+   mtree->Branch("track_ip3d",&track_ip3d);
+   mtree->GetBranch("track_ip3d")->SetTitle("track ip3d");
+   mtree->Branch("track_ip3dErr",&track_ip3dErr);
+   mtree->GetBranch("track_ip3dErr")->SetTitle("track ip3dErr");
 }
 
 
@@ -177,12 +217,28 @@ TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    track_theta.clear();
    track_thetaError.clear();
 
+   track_vx.clear();
+   track_vy.clear();
+   track_vz.clear();
+
+   track_dxy.clear();
+   track_dxyErr.clear();
+   track_dz.clear();
+   track_dzErr.clear();
+   track_ip3d.clear();
+   track_ip3dErr.clear();
+
    Handle<reco::TrackCollection> tracks;
    iEvent.getByLabel("generalTracks", tracks);
+
+   Handle<reco::VertexCollection> vertices;
+   iEvent.getByLabel(InputTag("offlinePrimaryVertices"), vertices);
 
    if(tracks.isValid())
    {
       numtracks=tracks->size();
+      math::XYZPoint pv(vertices->begin()->position());
+      const reco::Vertex &PV = vertices->front();
    for (reco::TrackCollection::const_iterator iTrack = tracks->begin(); iTrack != tracks->end(); ++iTrack)
       {
         track_pt.push_back(iTrack->pt());
@@ -201,6 +257,22 @@ TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         track_pz.push_back(iTrack->pz());
         track_theta.push_back(iTrack->theta());
         track_thetaError.push_back(iTrack->thetaError());
+
+        track_vx.push_back(iTrack->vx());
+        track_vy.push_back(iTrack->vy());
+        track_vz.push_back(iTrack->vz());
+
+
+        track_dxy.push_back(iTrack->dxy(pv));
+        track_dz.push_back(iTrack->dz(pv));
+        track_dxyErr.push_back(iTrack->d0Error());
+        track_dzErr.push_back(iTrack->dzError());
+        edm::ESHandle<TransientTrackBuilder> trackBuilder;
+        iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder", trackBuilder);
+        reco::TransientTrack tt = trackBuilder->build(*iTrack);
+        std::pair<bool,Measurement1D> ip3dpv = IPTools::absoluteImpactParameter3D(tt, PV);
+        track_ip3d.push_back(ip3dpv.second.value());
+        track_ip3dErr.push_back(ip3dpv.second.error());
       }
    }
 
