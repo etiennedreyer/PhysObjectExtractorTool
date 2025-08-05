@@ -26,6 +26,11 @@
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
+
+// GSFTrack 
+#include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
+// Muon
+#include "DataFormats/MuonReco/interface/Muon.h"
 // classes to save data
 #include "TTree.h"
 #include "TFile.h"
@@ -271,8 +276,56 @@ void ParticleFlowAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSet
             // {
             //    PFCand_jetIdx.push_back(-1);
             // }
-            if (itPFCand->trackRef().isNonnull()){
-               reco::TrackRef track = itPFCand->trackRef();
+            bool isElectron = itPFCand->particleId() == reco::PFCandidate::e;
+            bool isMuon = itPFCand->particleId() == reco::PFCandidate::mu;
+            bool ipCalculated = false;
+
+            if (isMuon){
+               reco::MuonRef muon = itPFCand->muonRef();
+               if (muon.isNonnull()){
+                  reco::TrackRef muonTrack = muon->innerTrack();
+                  if (muonTrack.isNonnull()){
+                     PFCand_d0.push_back(muonTrack->dxy(PV.position()));
+                     PFCand_z0.push_back(muonTrack->dz(PV.position()));
+                     PFCand_d0Error.push_back(muonTrack->dxyError());
+                     PFCand_z0Error.push_back(muonTrack->dzError());
+
+                     edm::ESHandle<TransientTrackBuilder> trackBuilder;
+                     iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder", trackBuilder);
+                     reco::TransientTrack tt = trackBuilder->build(muonTrack);
+                     std::pair<bool,Measurement1D> ip3dpv = IPTools::absoluteImpactParameter3D(tt, PV);
+                     PFCand_ip3d.push_back(ip3dpv.second.value());
+                     PFCand_ip3dError.push_back(ip3dpv.second.significance());
+                     ipCalculated = true;
+                  }
+               }
+            }
+            else if (isElectron){
+               reco::GsfElectronRef gsfElectron = itPFCand->gsfElectronRef();
+               if (gsfElectron.isNonnull()){
+                  reco::GsfTrackRef gsfTrack = gsfElectron->gsfTrack();
+                  if (gsfTrack.isNonnull()){
+                     PFCand_d0.push_back(gsfTrack->dxy(PV.position()));
+                     PFCand_z0.push_back(gsfTrack->dz(PV.position()));
+                     PFCand_d0Error.push_back(gsfTrack->dxyError());
+                     PFCand_z0Error.push_back(gsfTrack->dzError());
+
+                     edm::ESHandle<TransientTrackBuilder> trackBuilder;
+                     iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder", trackBuilder);
+                     reco::TransientTrack tt = trackBuilder->build(gsfTrack);
+                     std::pair<bool,Measurement1D> ip3dpv = IPTools::absoluteImpactParameter3D(tt, PV);
+                     PFCand_ip3d.push_back(ip3dpv.second.value());
+                     PFCand_ip3dError.push_back(ip3dpv.second.significance());
+                     ipCalculated = true;
+                  }
+               }
+            }
+            if (ipCalculated){
+               continue;
+            }
+            reco::TrackRef track = itPFCand->trackRef();
+            reco::GsfTrackRef trackGsf = itPFCand->gsfTrackRef();
+            if (track.isNonnull()){
                PFCand_d0.push_back(track->dxy(PV.position()));
                PFCand_z0.push_back(track->dz(PV.position()));
                PFCand_d0Error.push_back(track->dxyError());
@@ -281,6 +334,19 @@ void ParticleFlowAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSet
                edm::ESHandle<TransientTrackBuilder> trackBuilder;
                iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder", trackBuilder);
                reco::TransientTrack tt = trackBuilder->build(track);
+               std::pair<bool,Measurement1D> ip3dpv = IPTools::absoluteImpactParameter3D(tt, PV);
+               PFCand_ip3d.push_back(ip3dpv.second.value());
+               PFCand_ip3dError.push_back(ip3dpv.second.significance());
+            }
+            else if (trackGsf.isNonnull()){
+               PFCand_d0.push_back(trackGsf->dxy(PV.position()));
+               PFCand_z0.push_back(trackGsf->dz(PV.position()));
+               PFCand_d0Error.push_back(trackGsf->dxyError());
+               PFCand_z0Error.push_back(trackGsf->dzError());
+
+               edm::ESHandle<TransientTrackBuilder> trackBuilder;
+               iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder", trackBuilder);
+               reco::TransientTrack tt = trackBuilder->build(trackGsf);
                std::pair<bool,Measurement1D> ip3dpv = IPTools::absoluteImpactParameter3D(tt, PV);
                PFCand_ip3d.push_back(ip3dpv.second.value());
                PFCand_ip3dError.push_back(ip3dpv.second.significance());
