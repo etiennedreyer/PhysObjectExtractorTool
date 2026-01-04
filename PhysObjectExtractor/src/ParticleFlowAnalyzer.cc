@@ -42,6 +42,128 @@
 #include "TrackingTools/TransientTrack/interface/TransientTrack.h"
 #include "TrackingTools/IPTools/interface/IPTools.h"
 
+// GenParticle for flavor labeling
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
+#include <cmath>
+
+class PFFlavorLabeler {
+public:
+    enum Label {
+        kPileup = 0,
+        kFake = 1,
+        kPrimary = 2,
+        kFromB = 3,
+        kFromBC = 4,
+        kFromC = 5,
+        kFromTau = 6,
+        kOtherSecondary = 7
+    };
+
+    static int getLabel(const reco::PFCandidate& pfCand, const reco::GenParticleCollection* genParticles) {
+        if (!genParticles) return kFake;
+        
+        // Find the closest GenParticle by deltaR
+        const reco::GenParticle* bestMatch = nullptr;
+        double minDeltaR = 0.1; // matching cone
+        
+        for (reco::GenParticleCollection::const_iterator itGen = genParticles->begin(); 
+             itGen != genParticles->end(); ++itGen) {
+            
+            double deta = pfCand.eta() - itGen->eta();
+            double dphi = deltaPhi(pfCand.phi(), itGen->phi());
+            double dr = std::sqrt(deta*deta + dphi*dphi);
+            
+            if (dr < minDeltaR) {
+                minDeltaR = dr;
+                bestMatch = &(*itGen);
+            }
+        }
+        
+        // If no match found, label as fake
+        if (!bestMatch) return kFake;
+        
+        // Apply GenParticle-based labeling logic
+        return determineAncestry(bestMatch);
+    }
+
+private:
+    static double deltaPhi(double phi1, double phi2) {
+        double result = phi1 - phi2;
+        while (result > M_PI) result -= 2*M_PI;
+        while (result <= -M_PI) result += 2*M_PI;
+        return result;
+    }
+
+    // Helper to check for B-Hadron (ID 500-599, 5000-5999)
+    static bool isBHadron(int pdgId) {
+        int aid = std::abs(pdgId);
+        return (aid / 100) % 10 == 5 || (aid / 1000) % 10 == 5;
+    }
+
+    // Helper to check for C-Hadron (ID 400-499, 4000-4999)
+    static bool isCHadron(int pdgId) {
+        int aid = std::abs(pdgId);
+        return (aid / 100) % 10 == 4 || (aid / 1000) % 10 == 4;
+    }
+
+    static int determineAncestry(const reco::Candidate* p) {
+        if (!p) return kFake;
+
+        bool hasB = false;
+        bool hasC = false;
+        bool hasTau = false;
+
+        bool closestIsB = false;
+        bool closestIsC = false;
+
+        const reco::Candidate* mom = p->mother();
+        
+        // Loop up the chain to find Heavy Flavor ancestors
+        while (mom) {
+            int pid = mom->pdgId();
+
+            if (isBHadron(pid)) {
+                hasB = true;
+                if (!closestIsC) closestIsB = true; 
+            }
+            else if (isCHadron(pid)) {
+                hasC = true;
+                if (!closestIsB) closestIsC = true; 
+            }
+            else if (std::abs(pid) == 15) {
+                hasTau = true;
+            }
+
+            if (mom->numberOfMothers() > 0) mom = mom->mother(0);
+            else break;
+        }
+
+        // --- Categorization ---
+        if (hasB) {
+            if (closestIsC) return kFromBC; // Label 4
+            return kFromB;                  // Label 3
+        }
+        if (hasC) return kFromC;            // Label 5
+        if (hasTau) return kFromTau;        // Label 6
+
+        // Status-based categorization
+        int st = p->status();
+
+        if (st == 1 || st == 3) {
+            const reco::Candidate* m = p->mother();
+            if (m) {
+                int mpid = std::abs(m->pdgId());
+                bool isLightHadron = (mpid > 100 && !isBHadron(mpid) && !isCHadron(mpid) && mpid != 2212);
+                if (isLightHadron) return kOtherSecondary; // Label 7
+            }
+            return kPrimary; // Label 2
+        }
+
+        return kOtherSecondary; // Label 7
+    }
+};
+
 //
 // class declaration
 //
@@ -85,6 +207,7 @@ private:
    std::vector<float> PFCand_vz;
 
    std::vector<int> PFCand_jetIdx;
+   std::vector<int> PFCand_label;
    
    std::vector<float> PFCand_d0;
    std::vector<float> PFCand_d0Error;
@@ -159,6 +282,9 @@ ParticleFlowAnalyzer::ParticleFlowAnalyzer(const edm::ParameterSet &iConfig) : p
    mtree->GetBranch("PFCand_ip3d")->SetTitle("PFCand ip3d");
    mtree->Branch("PFCand_ip3dError",&PFCand_ip3dError);
    mtree->GetBranch("PFCand_ip3dError")->SetTitle("PFCand ip3dError");
+   
+   mtree->Branch("PFCand_label", &PFCand_label);
+   mtree->GetBranch("PFCand_label")->SetTitle("PFCand flavor label");
 }
 
 ParticleFlowAnalyzer::~ParticleFlowAnalyzer()
@@ -200,9 +326,13 @@ void ParticleFlowAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSet
    PFCand_ip3dError.clear();
 
    PFCand_jetIdx.clear();
+   PFCand_label.clear();
 
    Handle<reco::PFCandidateCollection> pfcs;
    iEvent.getByLabel("particleFlow", pfcs);
+
+   Handle<reco::GenParticleCollection> genParticles;
+   iEvent.getByLabel("genParticles", genParticles);
 
    Handle<reco::PFJetCollection> myjets;
    iEvent.getByLabel(jetInput, myjets);
@@ -276,6 +406,14 @@ void ParticleFlowAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSet
             // {
             //    PFCand_jetIdx.push_back(-1);
             // }
+            
+            // Compute flavor label
+            int label = PFFlavorLabeler::kFake;
+            if (genParticles.isValid()) {
+                label = PFFlavorLabeler::getLabel(*itPFCand, genParticles.product());
+            }
+            PFCand_label.push_back(label);
+            
             bool isElectron = itPFCand->particleId() == reco::PFCandidate::e;
             bool isMuon = itPFCand->particleId() == reco::PFCandidate::mu;
             bool ipCalculated = false;
@@ -283,7 +421,8 @@ void ParticleFlowAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSet
             if (isMuon){
                reco::MuonRef muon = itPFCand->muonRef();
                if (muon.isNonnull()){
-                  reco::TrackRef muonTrack = muon->innerTrack();
+                  // reco::TrackRef muonTrack = muon->innerTrack();
+                  reco::TrackRef muonTrack = muon->muonBestTrack();
                   if (muonTrack.isNonnull()){
                      PFCand_d0.push_back(muonTrack->dxy(PV.position()));
                      PFCand_z0.push_back(muonTrack->dz(PV.position()));

@@ -6,6 +6,7 @@
 
 // system include files
 #include <memory>
+#include <cmath>
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -26,6 +27,121 @@
 #include "TTree.h"
 #include "TFile.h"
 #include <vector>
+
+
+class GenFlavorLabeler {
+public:
+    enum Label {
+        kPileup = 0,
+        kFake = 1,
+        kPrimary = 2,
+        kFromB = 3,
+        kFromBC = 4,
+        kFromC = 5,
+        kFromTau = 6,
+        kOtherSecondary = 7
+    };
+
+    static int getLabel(const reco::GenParticle& particle) {
+        // --- 0. Pile-up & 1. Fake ---
+        // GenParticles in the standard collection are real (not fakes).
+        // Standard MiniAOD/AOD GenParticles are typically signal-only (Hard Process).
+        // If you are running on a collection that includes Mixing (Pileup), 
+        // you can check the sub-event ID.
+        // For standard analysis, these will rarely trigger, but here is the check:
+        
+        // Use a small epsilon for vertex checks if needed, but strict ancestry is safer.
+        
+        // --- Ancestry Analysis ---
+        return determineAncestry(&particle);
+    }
+
+private:
+   // Helper to check for B-Hadron (ID 500-599, 5000-5999)
+   static bool isBHadron(int pdgId) {
+      int aid = std::abs(pdgId);
+      return (aid / 100) % 10 == 5 || (aid / 1000) % 10 == 5;
+   }
+
+    // Helper to check for C-Hadron (ID 400-499, 4000-4999)
+    static bool isCHadron(int pdgId) {
+        int aid = std::abs(pdgId);
+        return (aid / 100) % 10 == 4 || (aid / 1000) % 10 == 4;
+   }
+
+   static int determineAncestry(const reco::Candidate* p) {
+      if (!p) return kFake;
+
+      bool hasB = false;
+      bool hasC = false;
+      bool hasTau = false;
+
+      bool closestIsB = false;
+      bool closestIsC = false;
+
+      const reco::Candidate* mom = p->mother();
+      
+      // Loop up the chain to find Heavy Flavor ancestors
+      while (mom) {
+         int pid = mom->pdgId();
+
+         if (isBHadron(pid)) {
+               hasB = true;
+               if (!closestIsC) closestIsB = true; 
+         }
+         else if (isCHadron(pid)) {
+               hasC = true;
+               if (!closestIsB) closestIsC = true; 
+         }
+         else if (std::abs(pid) == 15) {
+               hasTau = true;
+         }
+
+         if (mom->numberOfMothers() > 0) mom = mom->mother(0);
+         else break;
+      }
+
+      // --- Categorization ---
+      if (hasB) {
+         if (closestIsC) return kFromBC; // Label 4
+         return kFromB;                  // Label 3
+      }
+      if (hasC) return kFromC;            // Label 5
+      if (hasTau) return kFromTau;        // Label 6
+
+      // --- CMSSW_5_3_X COMPATIBILITY FIX ---
+      // We cannot use isPromptFinalState(). We use status codes.
+      // Status 3 = Hard Process (Matrix Element)
+      // Status 1 = Stable Final State
+      // Status 2 = Decayed
+      
+      int st = p->status();
+
+      if (st == 1 || st == 3) {
+         // Distinguish "Primary" (prompt) from "OtherSecondary" (light decays like K->mu, pi->mu)
+         // If the direct mother is a Light Hadron (Meson/Baryon) and NOT a heavy flavor, 
+         // then this is a secondary decay.
+         
+         const reco::Candidate* m = p->mother();
+         if (m) {
+               int mpid = std::abs(m->pdgId());
+               
+               // Check if mother is a hadron (ID > 100) but not B, C, or Proton (2212)
+               // We exclude Protons because they can be beam remnants (Primary/UE)
+               bool isLightHadron = (mpid > 100 && !isBHadron(mpid) && !isCHadron(mpid) && mpid != 2212);
+               
+               // If it comes from a light hadron decay (e.g. Pion, Kaon), it is Secondary
+               if (isLightHadron) return kOtherSecondary; // Label 7
+         }
+         
+         // Otherwise, it implies it came from String fragmentation, Gluons, or Quarks
+         return kPrimary; // Label 2
+      }
+
+      // Default fall-through for status 2 or other oddities
+      return kOtherSecondary; // Label 7
+   }
+};
 
 //
 // class declaration
@@ -57,6 +173,7 @@ private:
 
    int numGenPart;
    std::vector<int> GenPart_status;
+   std::vector<int> GenPart_label;
    std::vector<float> GenPart_pt;
    std::vector<float> GenPart_eta;
    std::vector<float> GenPart_mass;
@@ -113,6 +230,9 @@ GenParticleAnalyzer::GenParticleAnalyzer(const edm::ParameterSet &iConfig) : par
    // mtree->GetBranch("GenPart_pz")->SetTitle("generator particle z coordinate of momentum vector");
    mtree->Branch("GenPart_status", &GenPart_status);
    mtree->GetBranch("GenPart_status")->SetTitle("Particle status. 1=stable");
+   
+   mtree->Branch("GenPart_label", &GenPart_label);
+   mtree->GetBranch("GenPart_label")->SetTitle("Particle label.");
 
    mtree->Branch("GenPart_vx", &GenPart_vx);
    mtree->GetBranch("GenPart_vx")->SetTitle("generator particle x coordinate its vertex");
@@ -151,6 +271,7 @@ void GenParticleAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetu
    GenPart_py.clear();
    GenPart_pz.clear();
    GenPart_status.clear();
+   GenPart_label.clear();
    GenPart_vx.clear();
    GenPart_vy.clear();
    GenPart_vz.clear();
@@ -218,6 +339,8 @@ void GenParticleAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetu
                GenPart_pdgId.push_back(itGenPart->pdgId());
                GenPart_phi.push_back(itGenPart->phi());
                GenPart_status.push_back(itGenPart->status());
+               int label = GenFlavorLabeler::getLabel(*itGenPart);
+               GenPart_label.push_back(label);
                GenPart_px.push_back(itGenPart->px());
                GenPart_py.push_back(itGenPart->py());
                GenPart_pz.push_back(itGenPart->pz());

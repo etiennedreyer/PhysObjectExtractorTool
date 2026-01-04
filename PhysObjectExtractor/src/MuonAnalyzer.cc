@@ -199,11 +199,11 @@ MuonAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
   if(mymuons.isValid()){
   
-     const float mu_min_pt = 3;
+     const float mu_min_pt = 1;
      math::XYZPoint pv(vertices->begin()->position());
      
         for (reco::MuonCollection::const_iterator itmuon=mymuons->begin(); itmuon!=mymuons->end(); ++itmuon){
-           if (itmuon->pt() > mu_min_pt) {
+           if (itmuon->pt() > mu_min_pt && itmuon->isPFMuon() && itmuon->isPFIsolationValid()) {
 
         	    muon_e.push_back(itmuon->energy());
         	    muon_pt.push_back(itmuon->pt());
@@ -233,7 +233,8 @@ MuonAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
               muon_tightid.push_back(muon::isTightMuon(*itmuon, *vertices->begin()));
         	    muon_softid.push_back(muon::isSoftMuon(*itmuon, *vertices->begin()));
-        	    auto trk = itmuon->globalTrack();
+        	    // auto trk = itmuon->globalTrack();
+        	    auto trk = itmuon->muonBestTrack();
         	    if (trk.isNonnull()) {
         	      muon_dxy.push_back(trk->dxy(pv));
         	      muon_dz.push_back(trk->dz(pv));

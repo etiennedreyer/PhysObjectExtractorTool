@@ -136,11 +136,11 @@ ElectronAnalyzer::ElectronAnalyzer(const edm::ParameterSet &iConfig) {
   mtree->Branch("electron_dz", &electron_dz);
   mtree->GetBranch("electron_dz")
       ->SetTitle("electron longitudinal impact parameter (mm)");
-  mtree->Branch("electron_dxyError", &electron_dxyError);
-  mtree->GetBranch("electron_dxyError")
+  mtree->Branch("electron_dxyErr", &electron_dxyError);
+  mtree->GetBranch("electron_dxyErr")
       ->SetTitle("electron transverse impact parameter uncertainty (mm)");
-  mtree->Branch("electron_dzError", &electron_dzError);
-  mtree->GetBranch("electron_dzError")
+  mtree->Branch("electron_dzErr", &electron_dzError);
+  mtree->GetBranch("electron_dzErr")
       ->SetTitle("electron longitudinal impact parameter uncertainty (mm)");
 }
 
