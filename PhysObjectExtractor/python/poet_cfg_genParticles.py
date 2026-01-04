@@ -153,6 +153,23 @@ process.GlobalTag.globaltag = "START53_LV6A1::All"
 #                     )
 # ---- Configure the PhysObjectExtractor modules!
 
+
+#---- Get non-PAT access to the jet flavour information
+from PhysicsTools.JetMCAlgos.HadronAndPartonSelector_cfi import selectedHadronsAndPartons
+process.selectedHadronsAndPartons = selectedHadronsAndPartons.clone()
+from PhysicsTools.JetMCAlgos.AK5PFJetsMCFlavourInfos_cfi import ak5JetFlavourInfos
+process.jetFlavourInfosAK5PFJets = ak5JetFlavourInfos.clone()
+
+#---- Configure the POET jet analyzer
+#---- Don't forget to run jec_cfg.py to get these .txt files!
+process.pfJetsAk5= cms.EDAnalyzer('SimpleJetAnalyzer',
+    InputCollection = cms.InputTag("ak5PFJets"),
+    isData = cms.bool(False),
+    minPt = cms.double(20.0),
+)
+
+
+
 # ---- More information about InputCollections at https://twiki.cern.ch/twiki/bin/view/CMSPublic/SWGuideRecoDataTable
 process.events = cms.EDAnalyzer('EventAnalyzer')
 
@@ -200,7 +217,7 @@ process.mymuons = cms.EDAnalyzer('MuonAnalyzer',
 )
 
 process.myelectrons = cms.EDAnalyzer('ElectronAnalyzer',
-    InputCollection = cms.InputTag("electrons"),
+    InputCollection = cms.InputTag("gsfElectrons"),
 )
 # --- PileUp
 # process.pu = cms.EDAnalyzer('PileupEventAnalyzer')
@@ -215,5 +232,15 @@ process.TFileService = cms.Service("TFileService", fileName=cms.string(output_fi
 # process.p = cms.Path(process.events+process.gens+process.pfcs+process.pfJetsAk5+process.genJetsAk5+process.genJetsAk7+process.vtxs+process.trigger + process.pu + process.mymets + process.mytracks)
 # process.p = cms.Path(process.events+process.gens+process.pfcs+process.pfJetsAk5+process.genJetsAk5+process.genJetsAk7)
 # process.p = cms.Path(process.events+process.gens+process.pfcs+process.vtxs+process.mytracks+process.mymuons)
-process.p = cms.Path(process.events+process.gens+process.pfcs+process.vtxs+process.myelectrons+process.mymuons)
+process.p = cms.Path(
+    process.events
+    + process.gens
+    + process.pfcs
+    + process.vtxs
+    + process.myelectrons
+    + process.mymuons
+    + process.selectedHadronsAndPartons
+    + process.jetFlavourInfosAK5PFJets
+    + process.pfJetsAk5
+)
 # process.p = cms.Path(process.genparticles)
