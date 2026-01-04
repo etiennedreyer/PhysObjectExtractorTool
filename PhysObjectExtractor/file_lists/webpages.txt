@@ -1,0 +1,19 @@
+- QCD 0-5: https://opendata.cern.ch/record/1340
+- QCD 5-15: https://opendata.cern.ch/record/1556
+- QCD 15-30: https://opendata.cern.ch/record/1366
+- QCD 30-50: https://opendata.cern.ch/record/1539
+- QCD 50-80: https://opendata.cern.ch/record/1555
+- QCD 80-120: https://opendata.cern.ch/record/1562
+- QCD 120-170: https://opendata.cern.ch/record/1348
+- QCD 170-300: https://opendata.cern.ch/record/1369
+- QCD 300-470: https://opendata.cern.ch/record/1469
+- QCD 470-600: https://opendata.cern.ch/record/1553
+- QCD 600-800: https://opendata.cern.ch/record/1558
+- QCD 800-1000: https://opendata.cern.ch/record/1560
+- QCD 1000-1400: https://opendata.cern.ch/record/1342 
+- QCD 1400-1800: https://opendata.cern.ch/record/1364
+- QCD 1800: https://opendata.cern.ch/record/1370
+
+- Hgamgam: https://opendata.cern.ch/record/1681
+- H4l: https://opendata.cern.ch/record/1443 
+- TTJets: https://opendata.cern.ch/record/1662 
