@@ -68,30 +68,75 @@ def cluster_jets_event(pt, eta, phi, jetdef, ptmin=20):
     return jets, jet_idxs
 
 
-def assign_gen_jet_label(gen_jets, gen_jet_idxs, gen_labels):
-    """Assign label to gen jets based on constituent particle labels"""
-    jet_labels = []
-
-    for jet_idx, jet in enumerate(gen_jets):
-        # Get constituents of this jet
-        constituent_mask = gen_jet_idxs == jet_idx
-        constituent_labels = gen_labels[constituent_mask]
-
-        # Label priority: FromB (3) > FromBC (4) > FromC (5) > others
-        # If any constituent is from B, label as b-jet (5)
-        # If any constituent is from C (but no B), label as c-jet (4)
-        # Otherwise, label as light-jet (0)
-
-        if np.any(constituent_labels == 3) or np.any(
-            constituent_labels == 4
-        ):  # FromB or FromBC
-            jet_labels.append(5)  # b-jet
-        elif np.any(constituent_labels == 5):  # FromC
-            jet_labels.append(4)  # c-jet
-        else:
-            jet_labels.append(0)  # light-jet
-
-    return np.array(jet_labels)
+def match_jets_to_hadrons(gen_jets, hadron_pt, hadron_eta, hadron_phi, hadron_labels, dr_threshold=0.3):
+    """Match gen jets to heavy hadrons using unique dR matching
+    
+    Each hadron is matched to at most one jet (the closest one).
+    Uses greedy matching with B-hadron precedence: B-hadrons are matched first,
+    then C-hadrons, ensuring B-jets take priority.
+    
+    Args:
+        gen_jets: List of fastjet Jet objects
+        hadron_pt, hadron_eta, hadron_phi: Arrays of hadron kinematics
+        hadron_labels: Array of hadron labels (5 for B-hadron, 4 for C-hadron)
+        dr_threshold: Maximum dR for matching (default 0.3)
+    
+    Returns:
+        Array of jet labels (5 for b-jet, 4 for c-jet, 0 for light-jet)
+    """
+    if len(gen_jets) == 0:
+        return np.array([], dtype=int)
+    
+    # If no hadrons in event, all jets are light jets
+    if len(hadron_pt) == 0:
+        return np.zeros(len(gen_jets), dtype=int)
+    
+    jet_labels = np.zeros(len(gen_jets), dtype=int)  # Default to light-jet
+    
+    # Get jet kinematics
+    jet_eta = np.array([j.eta() for j in gen_jets])
+    jet_phi = np.array([j.phi() for j in gen_jets])
+    
+    # Calculate dR between each jet and each hadron
+    # deta: shape (n_jets, n_hadrons)
+    deta = jet_eta[:, np.newaxis] - hadron_eta[np.newaxis, :]
+    dphi = jet_phi[:, np.newaxis] - hadron_phi[np.newaxis, :]
+    # Wrap phi difference
+    dphi = np.arctan2(np.sin(dphi), np.cos(dphi))
+    dr_matrix = np.sqrt(deta**2 + dphi**2)
+    
+    # Create priority key: B-hadrons (label=5) first, then C-hadrons (label=4)
+    # For each (jet, hadron) pair, create tuple (priority, dR, jet_idx, hadron_idx)
+    # where priority = 0 for B-hadrons, 1 for C-hadrons
+    matches = []
+    for jet_idx in range(len(gen_jets)):
+        for hadron_idx in range(len(hadron_pt)):
+            dr_val = dr_matrix[jet_idx, hadron_idx]
+            if dr_val <= dr_threshold:
+                priority = 0 if hadron_labels[hadron_idx] == 5 else 1  # B-hadrons first
+                matches.append((priority, dr_val, jet_idx, hadron_idx))
+    
+    # Sort by priority (B first), then by dR (closest first)
+    matches.sort(key=lambda x: (x[0], x[1]))
+    
+    used_jets = set()
+    used_hadrons = set()
+    
+    for priority, dr_val, jet_idx, hadron_idx in matches:
+        # Check if already matched
+        if jet_idx in used_jets or hadron_idx in used_hadrons:
+            continue
+        
+        # Make the match
+        jet_labels[jet_idx] = hadron_labels[hadron_idx]
+        used_jets.add(jet_idx)
+        used_hadrons.add(hadron_idx)
+        
+        # Optimization: stop if all jets or hadrons are matched
+        if len(used_jets) == len(gen_jets) or len(used_hadrons) == len(hadron_pt):
+            break
+    
+    return jet_labels
 
 
 def match_jets(gen_jets, pflow_jets, dr_threshold=0.3):
@@ -318,6 +363,9 @@ def calculate_signed_impact_parameter(
     jet_pz,
     d0_error=None,
     z0_error=None,  # Optional for significance
+    track_vx=None,
+    track_vy=None,
+
 ):
     """
     Calculates the signed 2D (dxy) and 3D impact parameters and their significance.
@@ -342,6 +390,7 @@ def calculate_signed_impact_parameter(
     # This calculation is geometrically straightforward in the 2D plane.
 
     track_phi = np.arctan2(track_py, track_px)
+    track_theta = np.arctan2(np.sqrt(track_px**2 + track_py**2), track_pz)
     jet_phi = np.arctan2(jet_py, jet_px)
 
     # # The signed d_xy is given by d0 * sin(delta_phi), where delta_phi is the
@@ -377,11 +426,17 @@ def calculate_signed_impact_parameter(
     crossing_geometry = d0 * np.sin(jet_phi - track_phi)
     phys_sign = np.sign(crossing_geometry)
 
+    # Delphes formula
+    # phys_sign = np.sign(jet_px * track_vx + jet_py * track_vy) 
+
     # The Signed IP is the MAGNITUDE (abs) times the SIGN
     dxy_signed = np.abs(d0) * phys_sign
 
     # --- 2. Signed 3D Impact Parameter (IP3D) ---
     # Use the same 2D sign for the 3D parameter
+    # Version with sin(theta) factor:
+    # ip3d_magnitude = np.sqrt(d0**2 + (z0 * np.sin(track_theta))**2)
+    # Original version without sin(theta):
     ip3d_magnitude = np.sqrt(d0**2 + z0**2)
     ip3d_signed = ip3d_magnitude * phys_sign
 
@@ -419,12 +474,11 @@ def process_event(event_data):
     """Process a single event: cluster jets, match, and calculate impact parameters
 
     Args:
-        event_data: tuple containing (event_idx, gen_event_data, pfc_event_data)
-
+        event_data: tuple containing (event_idx, gen_event_data, pfc_event_data, hadron_event_data)
     Returns:
         dict with results for this event
     """
-    event_idx, gen_event, pfc_event = event_data
+    event_idx, gen_event, pfc_event, hadron_event = event_data
 
     # Define anti-kT jet algorithm with R=0.5
     jetdef = fj.JetDefinition(fj.antikt_algorithm, 0.5)
@@ -435,6 +489,12 @@ def process_event(event_data):
     gen_phi = np.asarray(gen_event["phi"])
     gen_labels = np.asarray(gen_event["labels"])
 
+    # Extract hadron data for this event
+    had_pt = np.asarray(hadron_event["pt"])
+    had_eta = np.asarray(hadron_event["eta"])
+    had_phi = np.asarray(hadron_event["phi"])
+    had_labels = np.asarray(hadron_event["labels"])
+
     # Extract PF candidate data for this event
     pfc_pt = np.asarray(pfc_event["pt"])
     pfc_eta = np.asarray(pfc_event["eta"])
@@ -444,26 +504,19 @@ def process_event(event_data):
     pfc_z0 = np.asarray(pfc_event["z0"])
     pfc_z0_err = np.asarray(pfc_event["z0_err"])
 
+    pfc_vx = np.asarray(pfc_event["vx"])
+    pfc_vy = np.asarray(pfc_event["vy"])
+    pfc_vz = np.asarray(pfc_event["vz"])
+
     # Cluster gen jets for this event
     gen_jets, gen_jet_idxs = cluster_jets_event(
         gen_pt, gen_eta, gen_phi, jetdef, ptmin=20
     )
 
-    # Assign labels to gen jets
-    gen_jet_labels = []
-    for jet_idx, jet in enumerate(gen_jets):
-        constituent_mask = gen_jet_idxs == jet_idx
-        constituent_labels = gen_labels[constituent_mask]
-
-        # Label priority: FromB (3) > FromBC (4) > FromC (5) > others
-        if np.any(constituent_labels == 3) or np.any(constituent_labels == 4):
-            gen_jet_labels.append(5)  # b-jet
-        elif np.any(constituent_labels == 5):
-            gen_jet_labels.append(4)  # c-jet
-        else:
-            gen_jet_labels.append(0)  # light-jet
-
-    gen_jet_labels = np.array(gen_jet_labels)
+    # Assign labels to gen jets using dR matching to hadrons
+    gen_jet_labels = match_jets_to_hadrons(
+        gen_jets, had_pt, had_eta, had_phi, had_labels, dr_threshold=0.3
+    )
 
     # Cluster pflow jets for this event
     pflow_jets, pflow_jet_idxs = cluster_jets_event(
@@ -507,6 +560,10 @@ def process_event(event_data):
         eta = pfc_eta[constituent_mask]
         phi = pfc_phi[constituent_mask]
 
+        vx = pfc_vx[constituent_mask]
+        vy = pfc_vy[constituent_mask]
+        vz = pfc_vz[constituent_mask]
+
         # Filter for charged particles only (neutral particles have d0 = -1000)
         charged_mask = d0 > -999
         if not np.any(charged_mask):
@@ -519,6 +576,10 @@ def process_event(event_data):
         pt = pt[charged_mask]
         eta = eta[charged_mask]
         phi = phi[charged_mask]
+
+        vx = vx[charged_mask]
+        vy = vy[charged_mask]
+        vz = vz[charged_mask]
 
         # Calculate track momentum components
         track_px = pt * np.cos(phi)
@@ -548,6 +609,8 @@ def process_event(event_data):
                 jet_pz,
                 d0_error=d0_err[i],
                 z0_error=z0_err[i],
+                track_vx=vx[i],
+                track_vy=vy[i],
             )
             dxy.append(result["dxy_signed"])
             dxy_sig.append(
@@ -595,6 +658,7 @@ def main(input_file, num_events=1000, n_jobs=-1):
     # Load data from ROOT file
     file = uproot.open(input_file)
     gen_tree = file["gens/Events"]
+    hadron_tree = file["hadrons/Events"]
     pfc_tree = file["pfcs/Events"]
     if num_events > gen_tree.num_entries:
         num_events = gen_tree.num_entries
@@ -607,6 +671,17 @@ def main(input_file, num_events=1000, n_jobs=-1):
     # Load gen particle data as awkward arrays (jagged)
     gen_data = gen_tree.arrays(
         ["GenPart_pt", "GenPart_eta", "GenPart_phi", "GenPart_mass", "GenPart_label"],
+        library="ak",
+        entry_stop=num_events,
+    )
+    hadron_data = hadron_tree.arrays(
+        [
+            "HeavyHadron_pt",
+            "HeavyHadron_eta",
+            "HeavyHadron_phi",
+            "HeavyHadron_mass",
+            "HeavyHadron_label",
+        ],
         library="ak",
         entry_stop=num_events,
     )
@@ -678,7 +753,14 @@ def main(input_file, num_events=1000, n_jobs=-1):
             "vy": pfc_data["PFCand_vy"][event_idx],
             "vz": pfc_data["PFCand_vz"][event_idx],
         }
-        event_data_list.append((event_idx, gen_event, pfc_event))
+        hadron_event = {
+            "pt": hadron_data["HeavyHadron_pt"][event_idx],
+            "eta": hadron_data["HeavyHadron_eta"][event_idx],
+            "phi": hadron_data["HeavyHadron_phi"][event_idx],
+            "mass": hadron_data["HeavyHadron_mass"][event_idx],
+            "labels": hadron_data["HeavyHadron_label"][event_idx],
+        }
+        event_data_list.append((event_idx, gen_event, pfc_event, hadron_event))
 
     # Process events in parallel
     print(f"\nProcessing {n_events} events with {n_jobs} workers...")
