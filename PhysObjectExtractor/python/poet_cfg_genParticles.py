@@ -182,6 +182,10 @@ process.gens = cms.EDAnalyzer(
     InputJetCollection = cms.InputTag("ak5GenJets")
 )
 
+process.hadrons = cms.EDAnalyzer(
+    "GenHadronAnalyzer",
+)
+
 process.pfcs = cms.EDAnalyzer(
     "ParticleFlowAnalyzer",
     input_particle=cms.vstring("0:0"),
@@ -235,12 +239,13 @@ process.TFileService = cms.Service("TFileService", fileName=cms.string(output_fi
 process.p = cms.Path(
     process.events
     + process.gens
+    + process.hadrons
     + process.pfcs
-    + process.vtxs
-    + process.myelectrons
-    + process.mymuons
-    + process.selectedHadronsAndPartons
-    + process.jetFlavourInfosAK5PFJets
-    + process.pfJetsAk5
+    # + process.vtxs
+    # + process.myelectrons
+    # + process.mymuons
+    # + process.selectedHadronsAndPartons
+    # + process.jetFlavourInfosAK5PFJets
+    # + process.pfJetsAk5
 )
 # process.p = cms.Path(process.genparticles)
