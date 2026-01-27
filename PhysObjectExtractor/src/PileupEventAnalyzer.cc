@@ -53,6 +53,8 @@ class PileupEventAnalyzer : public edm::EDAnalyzer {
     
     // PileUp Event information
     int numPU;
+    float trueNumPU;
+    float actualNumPU;
     std::vector<float> PU_zpositions;
     std::vector<ULong64_t> PU_eventIDs;
 
@@ -78,6 +80,10 @@ PileupEventAnalyzer::PileupEventAnalyzer(const edm::ParameterSet& iConfig)
     // Event information
    tree->Branch("numPU", &numPU);
    tree->GetBranch("numPU")->SetTitle("Number of Pileup Events");
+   tree->Branch("trueNumPU", &trueNumPU);
+   tree->GetBranch("trueNumPU")->SetTitle("True Number of Pileup Events");
+   tree->Branch("actualNumPU", &actualNumPU);
+   tree->GetBranch("actualNumPU")->SetTitle("Actual Number of Pileup Events");
    tree->Branch("PU_zpositions", &PU_zpositions);
    tree->GetBranch("PU_zpositions")->SetTitle("Z positions of Pileup Events");
    tree->Branch("PU_eventIDs", &PU_eventIDs);
@@ -107,12 +113,18 @@ PileupEventAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iS
    numPU = 0;
    PU_zpositions.clear();
    PU_eventIDs.clear();
+   actualNumPU = 0.0;
+   trueNumPU = 0.0;
 
    Handle<std::vector<PileupSummaryInfo>> pileupInfo;
    iEvent.getByLabel("addPileupInfo", pileupInfo);
 
    for (std::vector<PileupSummaryInfo>::const_iterator itPUInfo = pileupInfo->begin(); itPUInfo != pileupInfo->end(); ++itPUInfo) {
       numPU++;
+      if (itPUInfo->getBunchCrossing() == 0) {
+         actualNumPU = itPUInfo->getPU_NumInteractions();
+         trueNumPU = itPUInfo->getTrueNumInteractions();
+      }
       std::vector<float> zpositions = itPUInfo->getPU_zpositions();
       std::vector<EventID> eventIDs = itPUInfo->getPU_EventID();
       // std::cout << "Number of Pileup Events: " << itPUInfo->getPU_NumInteractions() << std::endl;
