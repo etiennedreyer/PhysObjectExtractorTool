@@ -193,7 +193,8 @@ process.pfcs = cms.EDAnalyzer(
 )
 
 process.vtxs = cms.EDAnalyzer(
-    "VertexAnalyzer"
+    # "VertexAnalyzer"
+    "GenVertexAnalyzer"
 )
 
 # process.mymets= cms.EDAnalyzer('MetAnalyzer',
@@ -241,7 +242,7 @@ process.p = cms.Path(
     + process.gens
     + process.hadrons
     + process.pfcs
-    # + process.vtxs
+    + process.vtxs
     # + process.myelectrons
     # + process.mymuons
     # + process.selectedHadronsAndPartons
