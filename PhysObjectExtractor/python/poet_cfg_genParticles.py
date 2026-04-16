@@ -10,6 +10,7 @@ relBase = os.environ["CMSSW_BASE"]
 
 batchMode = False
 
+cond_db = "START53_LV6A1"
 if len(sys.argv) > 3:
     input_file = sys.argv[2]
     output_file = sys.argv[3]
@@ -17,6 +18,8 @@ if len(sys.argv) > 3:
         num_events = int(sys.argv[4])
     else:
         num_events = -1
+    if len(sys.argv) > 5:
+        cond_db = sys.argv[5]
 else:
     batchMode = True
     num_events = -1
@@ -115,8 +118,8 @@ else:
 # ---- Comment theese lines for launching at WIS
 process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
 # process.load("Configuration.StandardSequences.Services_cff")
-process.GlobalTag.connect = cms.string("sqlite_file:/srv01/agrp/dmitrykl/projects/cmssw/CMSSW_5_3_32/src/PhysObjectExtractorTool/PhysObjectExtractor/START53_LV6A1.db")
-process.GlobalTag.globaltag = "START53_LV6A1::All"
+process.GlobalTag.connect = cms.string("sqlite_file:/srv01/agrp/dmitrykl/projects/cmssw/CMSSW_5_3_32/src/PhysObjectExtractorTool/PhysObjectExtractor/" + cond_db + ".db")
+process.GlobalTag.globaltag = cond_db + "::All"
 
 
 
@@ -225,7 +228,7 @@ process.myelectrons = cms.EDAnalyzer('ElectronAnalyzer',
     InputCollection = cms.InputTag("gsfElectrons"),
 )
 # --- PileUp
-# process.pu = cms.EDAnalyzer('PileupEventAnalyzer')
+process.pu = cms.EDAnalyzer('PileupEventAnalyzer')
 
 # ---- Configure the output ROOT filename
 process.TFileService = cms.Service("TFileService", fileName=cms.string(output_file))
@@ -243,6 +246,7 @@ process.p = cms.Path(
     + process.hadrons
     + process.pfcs
     + process.vtxs
+    + process.pu
     # + process.myelectrons
     # + process.mymuons
     # + process.selectedHadronsAndPartons
